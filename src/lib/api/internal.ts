@@ -1,4 +1,5 @@
 import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
+import { buildSignedAuthRequest, sendSignedAuthRequest } from '../auth/remote';
 
 const APP_TOKEN_TTL_SECONDS = 120;
 
@@ -41,6 +42,21 @@ async function internalFetch(env: Env, sessionJwt: string, path: string, userId:
     },
     cache: 'no-store',
   });
+}
+
+export interface IconUploadUrl {
+  uploadUrl: string;
+  path: string;
+}
+
+export async function fetchIconUploadUrl(env: Env, userId: string, contentType: string): Promise<IconUploadUrl> {
+  const request = buildSignedAuthRequest(env, '/api/internal/mcp/icon-upload-url', {
+    method: 'POST',
+    body: JSON.stringify({ userId, contentType }),
+  });
+  const res = await sendSignedAuthRequest(request).catch(() => null);
+  if (!res?.ok) throw new Error(`api-auth icon upload url request failed: ${res?.status ?? 'network error'}`);
+  return (await res.json()) as IconUploadUrl;
 }
 
 export interface FirebasePhotoResult {
