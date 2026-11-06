@@ -60,11 +60,11 @@ function textOf(result: ToolResult): string {
 }
 
 describe('avatar flow over MCP tools with mocked auth services', () => {
-  it('reads the current icon through get_icon', async () => {
+  it('reads the current icon through accounts_profile_get_icon', async () => {
     backend.seedAvatar(PNG_BYTES, 'image/png');
     const context = await buildContext();
 
-    const result = await callTool(context, 'get_icon', {});
+    const result = await callTool(context, 'accounts_profile_get_icon', {});
     expect(result.isError).toBe(false);
 
     const image = result.content.find((item) => item.type === 'image');
@@ -86,13 +86,13 @@ describe('avatar flow over MCP tools with mocked auth services', () => {
     backend.seedAvatar(PNG_BYTES, 'image/png');
     const context = await buildContext();
 
-    const downloaded = await callTool(context, 'get_icon', {});
+    const downloaded = await callTool(context, 'accounts_profile_get_icon', {});
     expect(downloaded.isError).toBe(false);
     const downloadedImage = downloaded.content.find((item) => item.type === 'image');
     const downloadedBytes = new Uint8Array(Buffer.from(downloadedImage?.data ?? '', 'base64'));
     expect(sha256Hex(downloadedBytes)).toBe(sha256Hex(PNG_BYTES));
 
-    const prepared = await callTool(context, 'prepare_icon_upload', {
+    const prepared = await callTool(context, 'accounts_profile_prepare_icon_upload', {
       contentBase64: Buffer.from(downloadedBytes).toString('base64'),
       contentType: downloadedImage?.mimeType ?? 'image/png',
     });
@@ -108,12 +108,12 @@ describe('avatar flow over MCP tools with mocked auth services', () => {
     });
     expect(put.status).toBe(200);
 
-    const completed = await callTool(context, 'complete_icon_upload', { intent });
+    const completed = await callTool(context, 'accounts_profile_flow_complete_icon_upload', { intent });
     expect(completed.isError).toBe(false);
     const { photoURL } = JSON.parse(textOf(completed)) as { photoURL: string };
     expect(photoURL.startsWith(`${backend.env.CDN_URL}/u/profiles/${TEST_USER_ID}/avatar.png?v=`)).toBe(true);
 
-    const reread = await callTool(context, 'get_icon', {});
+    const reread = await callTool(context, 'accounts_profile_get_icon', {});
     expect(reread.isError).toBe(false);
     const rereadImage = reread.content.find((item) => item.type === 'image');
     expect(sha256Hex(new Uint8Array(Buffer.from(rereadImage?.data ?? '', 'base64')))).toBe(sha256Hex(PNG_BYTES));
@@ -123,7 +123,7 @@ describe('avatar flow over MCP tools with mocked auth services', () => {
     backend.failSessionExchange(500);
     try {
       const context = await buildContext();
-      const result = await callTool(context, 'get_icon', {});
+      const result = await callTool(context, 'accounts_profile_get_icon', {});
       expect(result.isError).toBe(true);
       expect(textOf(result)).toContain('api-auth session token exchange failed: 500');
     } finally {
