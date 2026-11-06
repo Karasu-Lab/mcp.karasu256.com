@@ -139,7 +139,7 @@ export async function createMockBackend(): Promise<MockBackend> {
   };
 
   const signAccessToken = async (): Promise<string> => {
-    return new SignJWT({ scope: 'openid profile read:profile write:profile' })
+    return new SignJWT({ scope: 'openid profile read:users.profile write:users.profile' })
       .setProtectedHeader({ alg: 'EdDSA', kid: 'mock-issuer-key' })
       .setIssuer(issuer)
       .setAudience(env.MCP_URL)

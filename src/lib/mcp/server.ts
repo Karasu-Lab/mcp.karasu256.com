@@ -189,7 +189,7 @@ const TOOL_DISPATCHES: ToolDispatch[] = [
     name: 'prepare_icon_upload',
     description:
       'Equivalent of POST /api/user/icon/prepare: validates the icon image, computes its SHA-256 and returns a presigned storage URL plus a signed upload intent. The caller uploads the file to the presigned URL itself. Requires authentication.',
-    requiredScope: 'write:profile',
+    requiredScope: 'write:users.profile',
     invalidArgsMessage: 'prepare_icon_upload requires contentBase64 and a supported contentType.',
     inputSchema: iconFileArgsSchema,
     outputSchema: jsonToolResultSchema(preparedIconUploadSchema),
@@ -206,7 +206,7 @@ const TOOL_DISPATCHES: ToolDispatch[] = [
     name: 'complete_icon_upload',
     description:
       'Equivalent of POST /api/user/icon/complete: verifies the object uploaded to the presigned URL from prepare_icon_upload and sets it as the profile icon. Requires authentication.',
-    requiredScope: 'write:profile',
+    requiredScope: 'write:users.profile',
     invalidArgsMessage: 'complete_icon_upload requires an intent argument.',
     inputSchema: intentArgsSchema,
     outputSchema: jsonToolResultSchema(photoUrlResultSchema),
@@ -222,7 +222,7 @@ const TOOL_DISPATCHES: ToolDispatch[] = [
   defineTool({
     name: 'set_icon_from_provider',
     description: 'Equivalent of PUT /api/user/icon: sets the profile icon to the avatar of one of the linked providers. Requires authentication.',
-    requiredScope: 'write:profile',
+    requiredScope: 'write:users.profile',
     invalidArgsMessage: 'set_icon_from_provider requires a providerId argument.',
     inputSchema: providerArgsSchema,
     outputSchema: jsonToolResultSchema(photoUrlResultSchema),
@@ -238,7 +238,7 @@ const TOOL_DISPATCHES: ToolDispatch[] = [
   defineTool({
     name: 'delete_icon',
     description: 'Equivalent of DELETE /api/user/icon: clears the profile icon. Requires authentication.',
-    requiredScope: 'write:profile',
+    requiredScope: 'write:users.profile',
     invalidArgsMessage: 'delete_icon takes no arguments.',
     inputSchema: emptyArgsSchema,
     outputSchema: jsonToolResultSchema(deletedIconResultSchema),
@@ -254,7 +254,7 @@ const TOOL_DISPATCHES: ToolDispatch[] = [
     name: 'get_icon',
     description:
       'Equivalent of GET /api/users/{id}/avatar: returns the verified profile icon image. Defaults to the authenticated user when userId is omitted. Requires authentication.',
-    requiredScope: 'read:profile',
+    requiredScope: 'read:users.profile',
     invalidArgsMessage: 'get_icon takes an optional userId argument.',
     inputSchema: getIconArgsSchema,
     outputSchema: getIconResultSchema,
