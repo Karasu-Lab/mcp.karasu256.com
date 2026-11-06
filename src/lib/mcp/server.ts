@@ -67,7 +67,7 @@ function jsonToolResultSchema(valueSchema: z.ZodType): z.ZodType {
 const emptyArgsSchema = z.object({});
 
 const deviceCodeArgsSchema = z.object({
-  deviceCode: z.string().min(1).describe('The device_code returned by start_device_authorization.'),
+  deviceCode: z.string().min(1).describe('The device_code returned by accounts_auth_start_device_authorization.'),
 });
 
 const iconFileArgsSchema = z.object({
@@ -76,7 +76,7 @@ const iconFileArgsSchema = z.object({
 });
 
 const intentArgsSchema = z.object({
-  intent: z.string().min(1).describe('The intent returned by prepare_icon_upload.'),
+  intent: z.string().min(1).describe('The intent returned by accounts_profile_prepare_icon_upload.'),
 });
 
 const providerArgsSchema = z.object({
@@ -166,31 +166,31 @@ function defineTool<I extends z.ZodType>(definition: {
 
 const TOOL_DISPATCHES: ToolDispatch[] = [
   defineTool({
-    name: 'start_device_authorization',
+    name: 'accounts_auth_start_device_authorization',
     description:
       'Starts device sign-in against auth.karasu256.com using the OAuth client ID configured for this MCP server. Returns a user code and verification URL for the user to approve. No authentication is required.',
     isPublic: true,
-    invalidArgsMessage: 'start_device_authorization takes no arguments.',
+    invalidArgsMessage: 'accounts_auth_start_device_authorization takes no arguments.',
     inputSchema: emptyArgsSchema,
     outputSchema: jsonToolResultSchema(deviceAuthorizationResultSchema),
     handle: async (_args, context) => jsonResult(await startDeviceAuthorization(context.env)),
   }),
   defineTool({
-    name: 'poll_device_token',
+    name: 'accounts_auth_poll_device_token',
     description:
-      'Polls the device authorization started by start_device_authorization, exchanging the device code at the OAuth token endpoint. While the user has not approved yet, the result reports authorization_pending. Once approved, the result carries the OAuth access token and refresh token issued for this server\'s OAuth client; send the access token as a Bearer token on later MCP requests.',
+      'Polls the device authorization started by accounts_auth_start_device_authorization, exchanging the device code at the OAuth token endpoint. While the user has not approved yet, the result reports authorization_pending. Once approved, the result carries the OAuth access token and refresh token issued for this server\'s OAuth client; send the access token as a Bearer token on later MCP requests.',
     isPublic: true,
-    invalidArgsMessage: 'poll_device_token requires a deviceCode argument.',
+    invalidArgsMessage: 'accounts_auth_poll_device_token requires a deviceCode argument.',
     inputSchema: deviceCodeArgsSchema,
     outputSchema: jsonToolResultSchema(deviceTokenResultSchema),
     handle: async (args, context) => jsonResult(await pollDeviceToken(context.env, args.deviceCode)),
   }),
   defineTool({
-    name: 'prepare_icon_upload',
+    name: 'accounts_profile_prepare_icon_upload',
     description:
       'Equivalent of POST /api/user/icon/prepare: validates the icon image, computes its SHA-256 and returns a presigned storage URL plus a signed upload intent. The caller uploads the file to the presigned URL itself. Requires authentication.',
-    requiredScope: 'write:profile',
-    invalidArgsMessage: 'prepare_icon_upload requires contentBase64 and a supported contentType.',
+    requiredScope: 'write:users.profile',
+    invalidArgsMessage: 'accounts_profile_prepare_icon_upload requires contentBase64 and a supported contentType.',
     inputSchema: iconFileArgsSchema,
     outputSchema: jsonToolResultSchema(preparedIconUploadSchema),
     handle: async (args, context) => {
@@ -203,11 +203,11 @@ const TOOL_DISPATCHES: ToolDispatch[] = [
     },
   }),
   defineTool({
-    name: 'complete_icon_upload',
+    name: 'accounts_profile_flow_complete_icon_upload',
     description:
-      'Equivalent of POST /api/user/icon/complete: verifies the object uploaded to the presigned URL from prepare_icon_upload and sets it as the profile icon. Requires authentication.',
-    requiredScope: 'write:profile',
-    invalidArgsMessage: 'complete_icon_upload requires an intent argument.',
+      'Equivalent of POST /api/user/icon/complete: verifies the object uploaded to the presigned URL from accounts_profile_prepare_icon_upload and sets it as the profile icon. Requires authentication.',
+    requiredScope: 'write:users.profile',
+    invalidArgsMessage: 'accounts_profile_flow_complete_icon_upload requires an intent argument.',
     inputSchema: intentArgsSchema,
     outputSchema: jsonToolResultSchema(photoUrlResultSchema),
     handle: async (args, context) => {
@@ -220,10 +220,10 @@ const TOOL_DISPATCHES: ToolDispatch[] = [
     },
   }),
   defineTool({
-    name: 'set_icon_from_provider',
+    name: 'accounts_profile_flow_set_icon_from_provider',
     description: 'Equivalent of PUT /api/user/icon: sets the profile icon to the avatar of one of the linked providers. Requires authentication.',
-    requiredScope: 'write:profile',
-    invalidArgsMessage: 'set_icon_from_provider requires a providerId argument.',
+    requiredScope: 'write:users.profile',
+    invalidArgsMessage: 'accounts_profile_flow_set_icon_from_provider requires a providerId argument.',
     inputSchema: providerArgsSchema,
     outputSchema: jsonToolResultSchema(photoUrlResultSchema),
     handle: async (args, context) => {
@@ -236,10 +236,10 @@ const TOOL_DISPATCHES: ToolDispatch[] = [
     },
   }),
   defineTool({
-    name: 'delete_icon',
+    name: 'accounts_profile_flow_delete_icon',
     description: 'Equivalent of DELETE /api/user/icon: clears the profile icon. Requires authentication.',
-    requiredScope: 'write:profile',
-    invalidArgsMessage: 'delete_icon takes no arguments.',
+    requiredScope: 'write:users.profile',
+    invalidArgsMessage: 'accounts_profile_flow_delete_icon takes no arguments.',
     inputSchema: emptyArgsSchema,
     outputSchema: jsonToolResultSchema(deletedIconResultSchema),
     handle: async (_args, context) => {
@@ -251,11 +251,11 @@ const TOOL_DISPATCHES: ToolDispatch[] = [
     },
   }),
   defineTool({
-    name: 'get_icon',
+    name: 'accounts_profile_get_icon',
     description:
       'Equivalent of GET /api/users/{id}/avatar: returns the verified profile icon image. Defaults to the authenticated user when userId is omitted. Requires authentication.',
-    requiredScope: 'read:profile',
-    invalidArgsMessage: 'get_icon takes an optional userId argument.',
+    requiredScope: 'read:users.profile',
+    invalidArgsMessage: 'accounts_profile_get_icon takes an optional userId argument.',
     inputSchema: getIconArgsSchema,
     outputSchema: getIconResultSchema,
     handle: async (args, context) => {
@@ -284,11 +284,26 @@ function toolInputSchema(schema: z.ZodType): Record<string, unknown> {
   return rest;
 }
 
-export const MCP_TOOLS: ToolDefinition[] = TOOL_DISPATCHES.map((tool) => ({
-  name: tool.name,
-  description: tool.description,
-  inputSchema: toolInputSchema(tool.input()),
-}));
+function toolDefinition(tool: ToolDispatch): ToolDefinition {
+  return {
+    name: tool.name,
+    description: tool.description,
+    inputSchema: toolInputSchema(tool.input()),
+  };
+}
+
+export const MCP_TOOLS: ToolDefinition[] = TOOL_DISPATCHES.map(toolDefinition);
+
+function isToolUsable(tool: ToolDispatch, context: McpContext): boolean {
+  if (tool.isPublic) return true;
+  if (!context.user) return false;
+  if (!tool.requiredScope) return true;
+  return context.scopes === null || context.scopes.includes(tool.requiredScope);
+}
+
+function listUsableTools(context: McpContext): ToolDefinition[] {
+  return TOOL_DISPATCHES.filter((tool) => isToolUsable(tool, context)).map(toolDefinition);
+}
 
 async function callTool(name: string, args: unknown, context: McpContext): Promise<Record<string, unknown>> {
   const tool = TOOL_DISPATCHES.find((candidate) => candidate.name === name);
@@ -346,7 +361,7 @@ export async function handleMcpMessage(message: unknown, context: McpContext): P
     case 'ping':
       return rpcResult(id, {});
     case 'tools/list':
-      return rpcResult(id, { tools: MCP_TOOLS });
+      return rpcResult(id, { tools: listUsableTools(context) });
     case 'tools/call': {
       const parsedParams = toolsCallParamsSchema.safeParse(request.params ?? {});
       if (!parsedParams.success) return rpcError(400, id, -32602, 'Invalid params: a tool name is required');
