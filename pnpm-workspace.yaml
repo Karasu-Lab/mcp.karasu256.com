@@ -1,0 +1,20 @@
+allowBuilds:
+  '@tailwindcss/oxide': true
+  sharp: true
+  unrs-resolver: true
+  '@firebase/util': true
+  protobufjs: true
+  esbuild: true
+  workerd: true
+  '@swc/core': true
+  simple-git-hooks: true
+  core-js: true
+  '@parcel/watcher': true
+  cpu-features: true
+  ssh2: true
+# First-party packages are published and pinned within the same day by
+# design, so they can never satisfy pnpm's default minimum release age
+# at deploy time. Exempt the org's own scope; the policy still applies
+# to every third-party dependency.
+minimumReleaseAgeExclude:
+  - '@karasu-lab/*'

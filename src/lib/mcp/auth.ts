@@ -1,7 +1,5 @@
-import { createDb } from '@karasu-lab/db/create-db';
-import { sessions } from '@karasu-lab/db/schema';
-import { eq } from 'drizzle-orm';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { buildSignedAuthRequest, sendSignedAuthRequest } from '../auth/remote';
 
 export interface McpUser {
   id: string;
@@ -14,6 +12,7 @@ export interface McpCaller {
   user: McpUser;
   scopes: string[] | null;
   sessionToken: string | null;
+  accessToken: string | null;
 }
 
 const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
@@ -29,7 +28,6 @@ function getJwks(issuer: string): ReturnType<typeof createRemoteJWKSet> {
 interface OAuthAccessTokenClaims {
   userId: string;
   scopes: string[];
-  sessionId: string | null;
 }
 
 async function verifyOAuthAccessToken(env: Env, token: string): Promise<OAuthAccessTokenClaims | null> {
@@ -40,7 +38,6 @@ async function verifyOAuthAccessToken(env: Env, token: string): Promise<OAuthAcc
     return {
       userId: payload.sub,
       scopes: typeof payload.scope === 'string' ? payload.scope.split(' ').filter(Boolean) : [],
-      sessionId: typeof payload.sid === 'string' ? payload.sid : null,
     };
   } catch {
     return null;
@@ -82,15 +79,6 @@ async function resolveUserFromSessionToken(env: Env, token: string): Promise<Mcp
   return null;
 }
 
-async function sessionTokenForSessionId(env: Env, sessionId: string, userId: string): Promise<string | null> {
-  const db = createDb(env.DATABASE_URL);
-  const rows = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
-  const session = rows[0];
-  if (!session || session.userId !== userId) return null;
-  if (session.expiresAt.getTime() <= Date.now()) return null;
-  return session.token;
-}
-
 function sessionTokenFromCookie(cookieHeader: string | null): string | null {
   if (!cookieHeader) return null;
   for (const part of cookieHeader.split(';')) {
@@ -107,7 +95,7 @@ export async function resolveMcpCaller(env: Env, request: Request): Promise<McpC
   const cookieToken = sessionTokenFromCookie(request.headers.get('cookie'));
   if (cookieToken) {
     const user = await resolveUserFromSessionToken(env, cookieToken).catch(() => null);
-    if (user) return { user, scopes: null, sessionToken: cookieToken };
+    if (user) return { user, scopes: null, sessionToken: cookieToken, accessToken: null };
   }
 
   const authorization = request.headers.get('authorization');
@@ -118,15 +106,29 @@ export async function resolveMcpCaller(env: Env, request: Request): Promise<McpC
   if (claims) {
     const user = await resolveUserFromAccessToken(env, token).catch(() => null);
     if (!user || user.id !== claims.userId) return null;
-    const sessionToken = claims.sessionId
-      ? await sessionTokenForSessionId(env, claims.sessionId, claims.userId).catch(() => null)
-      : null;
-    return { user, scopes: claims.scopes, sessionToken };
+    return { user, scopes: claims.scopes, sessionToken: null, accessToken: token };
   }
 
   const user = await resolveUserFromSessionToken(env, token).catch(() => null);
-  if (user) return { user, scopes: null, sessionToken: token };
+  if (user) return { user, scopes: null, sessionToken: token, accessToken: null };
   return null;
+}
+
+export async function fetchSessionJwtForCaller(env: Env, caller: McpCaller): Promise<string> {
+  if (caller.sessionToken) return fetchSessionJwt(env, caller.sessionToken);
+  if (caller.accessToken) {
+    const request = buildSignedAuthRequest(env, '/api/internal/mcp/session-token', {
+      method: 'POST',
+      body: JSON.stringify({ accessToken: caller.accessToken }),
+    });
+    const res = await sendSignedAuthRequest(request).catch(() => null);
+    if (res?.ok) {
+      const { token } = (await res.json().catch(() => ({}))) as { token?: string };
+      if (token) return token;
+    }
+    throw new Error(`api-auth session token exchange failed: ${res?.status ?? 'network error'}`);
+  }
+  throw new Error('api-auth session token exchange failed: the caller has no session');
 }
 
 export async function fetchSessionJwt(env: Env, sessionToken: string): Promise<string> {

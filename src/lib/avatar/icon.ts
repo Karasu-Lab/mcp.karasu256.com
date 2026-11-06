@@ -1,10 +1,9 @@
 import { createHash } from 'node:crypto';
 import { deleteUploadedImage } from '@karasu-lab/utils/server';
-import { fetchSetFirebasePhoto, fetchSetUserImage, fetchUploadStatus, fetchVerifyUpload } from '../api/internal';
+import { fetchIconUploadUrl, fetchSetFirebasePhoto, fetchSetUserImage, fetchUploadStatus, fetchVerifyUpload } from '../api/internal';
 import { buildSignedAuthRequest, sendSignedAuthRequest } from '../auth/remote';
 import { signUploadIntent, verifyUploadIntent } from './intent';
 import { avatarCdnPath } from './paths';
-import { presignUploadUrl } from './presign';
 
 export const MAX_ICON_FILE_BYTES = 5 * 1024 * 1024;
 export const ALLOWED_ICON_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -24,8 +23,7 @@ export interface PreparedIconUpload {
 
 export async function prepareIconUpload(env: Env, userId: string, bytes: Uint8Array, contentType: string): Promise<PreparedIconUpload> {
   const sha256 = createHash('sha256').update(bytes).digest('hex');
-  const path = avatarCdnPath(userId);
-  const uploadUrl = await presignUploadUrl(env, path, contentType);
+  const { uploadUrl, path } = await fetchIconUploadUrl(env, userId, contentType);
   const intent = signUploadIntent(env, { userId, path, sha256, contentType, size: bytes.byteLength });
   return { uploadUrl, intent };
 }

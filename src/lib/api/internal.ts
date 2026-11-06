@@ -1,4 +1,6 @@
-import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
+import { createHash, randomUUID, sign } from 'node:crypto';
+import { appPrivateKey } from '../app-key';
+import { buildSignedAuthRequest, sendSignedAuthRequest } from '../auth/remote';
 
 const APP_TOKEN_TTL_SECONDS = 120;
 
@@ -23,7 +25,7 @@ function signAppToken(env: Env, userId: string, method: string, url: URL, body: 
     })
   );
   const signingInput = `${header}.${payload}`;
-  const key = createPrivateKey({ key: Buffer.from(env.APP_PRIVATE_KEY, 'base64'), format: 'der', type: 'pkcs8' });
+  const key = appPrivateKey(env);
   const signature = sign(null, Buffer.from(signingInput), key);
   return `${signingInput}.${base64Url(signature)}`;
 }
@@ -41,6 +43,21 @@ async function internalFetch(env: Env, sessionJwt: string, path: string, userId:
     },
     cache: 'no-store',
   });
+}
+
+export interface IconUploadUrl {
+  uploadUrl: string;
+  path: string;
+}
+
+export async function fetchIconUploadUrl(env: Env, userId: string, contentType: string): Promise<IconUploadUrl> {
+  const request = buildSignedAuthRequest(env, '/api/internal/mcp/icon-upload-url', {
+    method: 'POST',
+    body: JSON.stringify({ userId, contentType }),
+  });
+  const res = await sendSignedAuthRequest(request).catch(() => null);
+  if (!res?.ok) throw new Error(`api-auth icon upload url request failed: ${res?.status ?? 'network error'}`);
+  return (await res.json()) as IconUploadUrl;
 }
 
 export interface FirebasePhotoResult {
