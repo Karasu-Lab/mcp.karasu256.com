@@ -1,5 +1,6 @@
-import { createPrivateKey, createPublicKey, sign, verify, type KeyObject } from 'node:crypto';
+import { createPublicKey, sign, verify, type KeyObject } from 'node:crypto';
 import { z } from 'zod';
+import { appPrivateKey } from '../app-key';
 
 const INTENT_TTL_SECONDS = 600;
 
@@ -15,7 +16,7 @@ const intentSchema = z.object({
 export type UploadIntent = z.infer<typeof intentSchema>;
 
 function privateKey(env: Env): KeyObject {
-  return createPrivateKey({ key: Buffer.from(env.APP_PRIVATE_KEY, 'base64'), format: 'der', type: 'pkcs8' });
+  return appPrivateKey(env);
 }
 
 export function signUploadIntent(env: Env, intent: Omit<UploadIntent, 'exp'>): string {

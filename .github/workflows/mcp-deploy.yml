@@ -23,7 +23,7 @@ jobs:
         with:
           mode: production
           worker-name: mcp-karasu256-com
-          secret-names: INTERNAL_API_SECRET APP_PRIVATE_KEY MCP_OAUTH_CLIENT_ID
+          secret-names: INTERNAL_API_SECRET MCP_OAUTH_CLIENT_ID
           vars-json: ${{ toJSON(vars) }}
           secrets-json: ${{ toJSON(secrets) }}
 
@@ -44,6 +44,6 @@ jobs:
         with:
           mode: preview
           worker-name: mcp-karasu256-com
-          secret-names: INTERNAL_API_SECRET APP_PRIVATE_KEY MCP_OAUTH_CLIENT_ID
+          secret-names: INTERNAL_API_SECRET MCP_OAUTH_CLIENT_ID
           vars-json: ${{ toJSON(vars) }}
           secrets-json: ${{ toJSON(secrets) }}

@@ -2,6 +2,7 @@ import { Elysia } from 'elysia';
 import { CloudflareAdapter } from 'elysia/adapter/cloudflare-worker';
 import { env as cfEnv } from 'cloudflare:workers';
 import { resolveEnv } from './constants';
+import { appPublicKey } from './lib/app-key';
 import { fetchSessionJwtForCaller, resolveMcpCaller } from './lib/mcp/auth';
 import { handleMcpMessage, type McpContext } from './lib/mcp/server';
 
@@ -42,7 +43,8 @@ const app = new Elysia({ adapter: CloudflareAdapter, aot: false, normalize: 'typ
     }
     return Response.json(response.body, init);
   })
-  .get('/mcp', () => Response.json({ error: 'Method Not Allowed' }, { status: 405, headers: { allow: 'POST' } }));
+  .get('/mcp', () => Response.json({ error: 'Method Not Allowed' }, { status: 405, headers: { allow: 'POST' } }))
+  .get('/.well-known/app-public-key', () => Response.json({ appId: env.APP_ID, publicKey: appPublicKey(env) }));
 
 function normalizePath(request: Request): Request {
   const url = new URL(request.url);
