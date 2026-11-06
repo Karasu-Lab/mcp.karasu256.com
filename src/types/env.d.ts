@@ -6,6 +6,7 @@ declare global {
     AUTH_API_URL: string;
     API_URL: string;
     CDN_URL: string;
+    MCP_URL: string;
     APP_ID: string;
     APP_PRIVATE_KEY?: string;
     INTERNAL_API_SECRET: string;

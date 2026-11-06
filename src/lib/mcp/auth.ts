@@ -33,7 +33,7 @@ interface OAuthAccessTokenClaims {
 async function verifyOAuthAccessToken(env: Env, token: string): Promise<OAuthAccessTokenClaims | null> {
   const issuer = `${env.AUTH_API_URL}/api/auth`;
   try {
-    const { payload } = await jwtVerify(token, getJwks(issuer), { issuer, audience: issuer });
+    const { payload } = await jwtVerify(token, getJwks(issuer), { issuer, audience: env.MCP_URL });
     if (!payload.sub) return null;
     return {
       userId: payload.sub,
