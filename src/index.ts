@@ -42,7 +42,7 @@ const app = new Elysia({ adapter: CloudflareAdapter, aot: false, normalize: 'typ
       (init.headers as Record<string, string>)['www-authenticate'] = 'Bearer';
     }
     return Response.json(response.body, init);
-  })
+  }, { type: 'none' })
   .get('/mcp', () => Response.json({ error: 'Method Not Allowed' }, { status: 405, headers: { allow: 'POST' } }))
   .get('/.well-known/app-public-key', () => Response.json({ appId: env.APP_ID, publicKey: appPublicKey(env) }));
 
