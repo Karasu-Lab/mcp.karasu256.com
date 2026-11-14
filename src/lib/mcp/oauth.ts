@@ -6,6 +6,10 @@ export function isOAuthPath(pathname: string): boolean {
   return ['/.well-known/', '/oauth2/', '/device/', '/jwks'].some((prefix) => pathname.startsWith(prefix));
 }
 
+export function isProxiedPath(pathname: string): boolean {
+  return ['/oauth2/', '/device/'].some((prefix) => pathname.startsWith(prefix)) || pathname === '/jwks';
+}
+
 export function withOAuthCors(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set('access-control-allow-origin', '*');
