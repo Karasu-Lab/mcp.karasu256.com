@@ -11,6 +11,7 @@ export interface McpContext {
   user: McpUser | null;
   scopes: string[] | null;
   sessionCookie: string | null;
+  accessToken?: string | null;
   getSessionJwt: () => Promise<string>;
   tools: ToolDispatch[];
 }

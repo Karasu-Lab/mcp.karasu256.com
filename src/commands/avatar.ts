@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { deleteUploadedImage } from '@karasu-lab/utils/server';
-import { fetchAvatarUploadUrl, fetchSetFirebasePhoto, fetchSetUserImage, fetchUploadStatus, fetchVerifyUpload } from '../lib/api/internal';
+import { fetchSignedUploadUrl } from '../lib/api/cdn';
+import { fetchSetFirebasePhoto, fetchSetUserImage, fetchUploadStatus, fetchVerifyUpload } from '../lib/api/internal';
 import { buildSignedAuthRequest, sendSignedAuthRequest } from '../lib/auth/remote';
 import { signUploadIntent, verifyUploadIntent } from '../lib/avatar/intent';
 import { defineTool, jsonResult, jsonToolResultSchema, textResult, type ToolDispatch } from '../lib/mcp/server';
@@ -60,7 +61,8 @@ export function avatarCommands(): ToolDispatch[] {
           size = args.size as number;
         }
         if (size === 0 || size > 5 * 1024 * 1024) return textResult('payload_too_large', true);
-        const { uploadUrl, path } = await fetchAvatarUploadUrl(context.env, await context.getSessionJwt(), user.id, args.contentType);
+        const path = avatarPath(user.id);
+        const uploadUrl = await fetchSignedUploadUrl(context.env, context.accessToken ?? (await context.getSessionJwt()), path);
         const intent = signUploadIntent(context.env, { userId: user.id, path, sha256, contentType: args.contentType, size });
         return jsonResult({ uploadUrl, intent });
       },

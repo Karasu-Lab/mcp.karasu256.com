@@ -5,7 +5,7 @@ export class MuseConnectorAuthenticator implements McpAuthenticator {
     for (const token of [this.sessionTokenFromCookie(request.headers.get('cookie')), bearerToken(request)]) {
       if (!token) continue;
       const user = await resolveUserFromSessionToken(env, token).catch(() => null);
-      if (user) return { user, scopes: null, sessionToken: token, getSessionJwt: () => fetchSessionJwt(env, token) };
+      if (user) return { user, scopes: null, sessionToken: token, accessToken: null, getSessionJwt: () => fetchSessionJwt(env, token) };
     }
     return null;
   }

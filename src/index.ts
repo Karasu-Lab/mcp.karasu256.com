@@ -27,6 +27,7 @@ async function respond(
     user: caller?.user ?? null,
     scopes: caller?.scopes ?? null,
     sessionCookie: caller?.sessionToken ? `better-auth.session_token=${caller.sessionToken}` : null,
+    accessToken: caller?.accessToken ?? null,
     getSessionJwt: () => {
       if (!caller) {
         return Promise.reject(new Error('api-auth session token exchange failed: the caller has no session'));
