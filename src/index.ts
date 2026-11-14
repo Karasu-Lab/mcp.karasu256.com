@@ -8,7 +8,8 @@ import { ClaudeCommands, MuseConnectorCommands } from './commands';
 import { ClaudeAuthenticator } from './lib/mcp/auth/claude';
 import type { McpCaller } from './lib/mcp/auth/common';
 import { MuseConnectorAuthenticator } from './lib/mcp/auth/muse';
-import { bearerChallenge, protectedResourceMetadata, resourceMetadataPath } from './lib/mcp/resource-metadata';
+import { authorizationServerMetadata, forwardToAuthServer, isOAuthPath, oauthPreflight, withOAuthCors } from './lib/mcp/oauth';
+import { bearerChallenge,protectedResourceMetadata, resourceMetadataPath } from './lib/mcp/resource-metadata';
 import { appPublicKeyResponseSchema, jsonRpcRequestSchema, jsonRpcResponseSchema, type JsonRpcResponse } from './lib/mcp/schemas';
 import { handleMcpMessage, type McpContext, type ToolDispatch } from './lib/mcp/server';
 
@@ -99,6 +100,11 @@ const app = new Elysia({ adapter: CloudflareAdapter, aot: false })
   )
   .get(resourceMetadataPath(env), () => protectedResourceMetadata(env))
   .get('/.well-known/oauth-protected-resource', () => protectedResourceMetadata(env))
+  .get('/.well-known/oauth-authorization-server', () => authorizationServerMetadata(env))
+  .get('/.well-known/openid-configuration', () => authorizationServerMetadata(env))
+  .all('/oauth2/*', ({ request }) => forwardToAuthServer(env, request), { parse: 'none' })
+  .all('/device/*', ({ request }) => forwardToAuthServer(env, request), { parse: 'none' })
+  .all('/jwks', ({ request }) => forwardToAuthServer(env, request), { parse: 'none' })
   .get('/.well-known/app-public-key', () => ({ appId: env.APP_ID, publicKey: appPublicKey(env) }), {
     response: 'app-public-key-response',
   });
@@ -112,5 +118,10 @@ function normalizePath(request: Request): Request {
 }
 
 export default {
-  fetch: (request: Request) => app.fetch(normalizePath(request)),
+  async fetch(rawRequest: Request): Promise<Response> {
+    const request = normalizePath(rawRequest);
+    if (!isOAuthPath(new URL(request.url).pathname)) return app.fetch(request);
+    if (request.method === 'OPTIONS') return oauthPreflight();
+    return withOAuthCors(await app.fetch(request));
+  },
 };
