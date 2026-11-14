@@ -9,6 +9,7 @@ export interface McpCaller {
   user: McpUser;
   scopes: string[] | null;
   sessionToken: string | null;
+  accessToken: string | null;
   getSessionJwt: () => Promise<string>;
 }
 

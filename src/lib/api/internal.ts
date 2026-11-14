@@ -1,5 +1,4 @@
 import { createHash, randomUUID, sign } from 'node:crypto';
-import { z } from 'zod';
 import { appPrivateKey } from '../app-key';
 
 const APP_TOKEN_TTL_SECONDS = 120;
@@ -43,23 +42,6 @@ async function internalFetch(env: Env, sessionJwt: string, path: string, userId:
     },
     cache: 'no-store',
   });
-}
-
-const avatarUploadUrlSchema = z.object({ uploadUrl: z.url(), path: z.string().min(1) });
-
-export async function fetchAvatarUploadUrl(
-  env: Env,
-  sessionJwt: string,
-  userId: string,
-  contentType: string
-): Promise<z.output<typeof avatarUploadUrlSchema>> {
-  const res = await internalFetch(env, sessionJwt, `/internal/users/${encodeURIComponent(userId)}/avatar-upload-url`, userId, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ contentType }),
-  });
-  if (!res.ok) throw new Error(`api.karasu256.com responded ${res.status} for ${res.url}`);
-  return avatarUploadUrlSchema.parse(await res.json());
 }
 
 export interface FirebasePhotoResult {

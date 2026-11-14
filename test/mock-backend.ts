@@ -76,15 +76,14 @@ export async function createMockBackend(): Promise<MockBackend> {
       return Response.json({ token: SESSION_JWT });
     }
 
-    const avatarUploadUrlMatch = /^\/internal\/users\/([^/]+)\/avatar-upload-url$/.exec(url.pathname);
-    if (method === 'POST' && url.origin === env.API_URL && avatarUploadUrlMatch) {
-      if (headers.get('authorization') !== `Bearer ${SESSION_JWT}`) return new Response(null, { status: 401 });
-      const path = avatarPath(decodeURIComponent(avatarUploadUrlMatch[1]));
-      return Response.json({ uploadUrl: `https://storage.test/put/${path}`, path });
+    if (method === 'POST' && url.origin === env.CDN_URL && url.pathname === '/mcp/upload/ticket') {
+      if (!headers.get('x-signature') || !headers.get('x-signature-timestamp')) return new Response(null, { status: 401 });
+      if (!headers.get('authorization')?.startsWith('Bearer ')) return new Response(null, { status: 401 });
+      return Response.json({ ticket: 'mock-upload-ticket' });
     }
 
-    if (method === 'PUT' && url.origin === 'https://storage.test') {
-      const path = url.pathname.replace(/^\/put\//, '');
+    if (method === 'PUT' && url.origin === env.CDN_URL && url.pathname === '/upload/signed') {
+      const path = url.searchParams.get('path') ?? '';
       const bytes = new Uint8Array(await new Response(init?.body as BodyInit | undefined).arrayBuffer());
       store.set(path, { bytes, contentType: headers.get('content-type') ?? 'application/octet-stream' });
       return new Response(null, { status: 200 });
