@@ -42,15 +42,13 @@ export async function authorizationServerMetadata(env: Env): Promise<Record<stri
   const origin = publicOrigin(env);
   const upstreamBase = `${env.AUTH_API_URL}/api/auth/`;
 
-  const metadata: Record<string, unknown> = { ...upstream, issuer: origin };
+  const metadata: Record<string, unknown> = { ...upstream };
   for (const [key, value] of Object.entries(upstream)) {
     const isEndpoint = key.endsWith('_endpoint') || key === 'jwks_uri';
     if (isEndpoint && typeof value === 'string' && value.startsWith(upstreamBase)) {
       metadata[key] = `${origin}/${value.slice(upstreamBase.length)}`;
     }
   }
-  // The authorization response carries api-auth's issuer, which differs from the issuer advertised here.
-  delete metadata.authorization_response_iss_parameter_supported;
   return metadata;
 }
 
