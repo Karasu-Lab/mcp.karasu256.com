@@ -1,15 +1,47 @@
 import { Elysia } from 'elysia';
 import { CloudflareAdapter } from 'elysia/adapter/cloudflare-worker';
 import { env as cfEnv } from 'cloudflare:workers';
+import { z } from 'zod';
 import { resolveEnv } from './constants';
 import { appPublicKey } from './lib/app-key';
 import { ClaudeCommands, MuseConnectorCommands } from './commands';
 import { ClaudeAuthenticator } from './lib/mcp/auth/claude';
+import type { McpCaller } from './lib/mcp/auth/common';
 import { MuseConnectorAuthenticator } from './lib/mcp/auth/muse';
-import { appPublicKeyResponseSchema, jsonRpcRequestSchema, jsonRpcResponseSchema } from './lib/mcp/schemas';
-import { handleMcpMessage, type McpContext } from './lib/mcp/server';
+import { bearerChallenge, protectedResourceMetadata, resourceMetadataPath } from './lib/mcp/resource-metadata';
+import { appPublicKeyResponseSchema, jsonRpcRequestSchema, jsonRpcResponseSchema, type JsonRpcResponse } from './lib/mcp/schemas';
+import { handleMcpMessage, type McpContext, type ToolDispatch } from './lib/mcp/server';
 
 const env = resolveEnv(cfEnv as Env);
+
+async function respond(
+  body: unknown,
+  caller: McpCaller | null,
+  tools: ToolDispatch[],
+  set: { status?: number | string; headers: Record<string, string | number> }
+): Promise<JsonRpcResponse | undefined> {
+  let sessionJwtPromise: Promise<string> | null = null;
+  const context: McpContext = {
+    env,
+    user: caller?.user ?? null,
+    scopes: caller?.scopes ?? null,
+    sessionCookie: caller?.sessionToken ? `better-auth.session_token=${caller.sessionToken}` : null,
+    getSessionJwt: () => {
+      if (!caller) {
+        return Promise.reject(new Error('api-auth session token exchange failed: the caller has no session'));
+      }
+      sessionJwtPromise ??= caller.getSessionJwt();
+      return sessionJwtPromise;
+    },
+    tools,
+  };
+
+  const response = await handleMcpMessage(body, context);
+  set.status = response.status;
+  if (!response.body) return undefined;
+  if (response.status === 401) set.headers['www-authenticate'] = 'Bearer';
+  return response.body;
+}
 
 const app = new Elysia({ adapter: CloudflareAdapter, aot: false })
   .model({
@@ -29,37 +61,32 @@ const app = new Elysia({ adapter: CloudflareAdapter, aot: false })
   })
   .post(
     '/mcp',
-    async ({ body, request }) => {
+    async ({ body, request, set }) => {
       const claudeCaller = await new ClaudeAuthenticator().authenticate(env, request).catch(() => null);
       const caller = claudeCaller ?? (await new MuseConnectorAuthenticator().authenticate(env, request).catch(() => null));
-      const commands = claudeCaller ? new ClaudeCommands() : new MuseConnectorCommands();
-
-      let sessionJwtPromise: Promise<string> | null = null;
-      const context: McpContext = {
-        env,
-        user: caller?.user ?? null,
-        scopes: caller?.scopes ?? null,
-        sessionCookie: caller?.sessionToken ? `better-auth.session_token=${caller.sessionToken}` : null,
-        getSessionJwt: () => {
-          if (!caller) {
-            return Promise.reject(new Error('api-auth session token exchange failed: the caller has no session'));
-          }
-          sessionJwtPromise ??= caller.getSessionJwt();
-          return sessionJwtPromise;
-        },
-        tools: commands.list(),
-      };
-
-      const response = await handleMcpMessage(body, context);
-      if (!response.body) return new Response(null, { status: response.status });
-
-      const init: ResponseInit = { status: response.status, headers: { 'content-type': 'application/json' } };
-      if (response.status === 401) {
-        (init.headers as Record<string, string>)['www-authenticate'] = 'Bearer';
+      if (!caller) {
+        set.status = 401;
+        set.headers['www-authenticate'] = bearerChallenge(env);
+        return { jsonrpc: '2.0' as const, id: body.id ?? null, error: { code: -32001, message: 'Unauthorized' } };
       }
-      return Response.json(response.body, init);
+      const commands = claudeCaller ? new ClaudeCommands() : new MuseConnectorCommands();
+      return respond(body, caller, commands.list(), set);
     },
-    { body: 'json-rpc-request', response: 'json-rpc-response' }
+    {
+      body: 'json-rpc-request',
+      response: { 200: 'json-rpc-response', 202: z.undefined(), 400: 'json-rpc-response', 401: 'json-rpc-response' },
+    }
+  )
+  .post(
+    '/muse/mcp',
+    async ({ body, request, set }) => {
+      const caller = await new MuseConnectorAuthenticator().authenticate(env, request).catch(() => null);
+      return respond(body, caller, new MuseConnectorCommands().list(), set);
+    },
+    {
+      body: 'json-rpc-request',
+      response: { 200: 'json-rpc-response', 202: z.undefined(), 400: 'json-rpc-response', 401: 'json-rpc-response' },
+    }
   )
   .get(
     '/mcp',
@@ -70,6 +97,8 @@ const app = new Elysia({ adapter: CloudflareAdapter, aot: false })
     },
     { response: 'json-rpc-response' }
   )
+  .get(resourceMetadataPath(env), () => protectedResourceMetadata(env))
+  .get('/.well-known/oauth-protected-resource', () => protectedResourceMetadata(env))
   .get('/.well-known/app-public-key', () => ({ appId: env.APP_ID, publicKey: appPublicKey(env) }), {
     response: 'app-public-key-response',
   });
