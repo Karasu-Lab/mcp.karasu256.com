@@ -1,6 +1,6 @@
 import { createHash, randomUUID, sign } from 'node:crypto';
+import { z } from 'zod';
 import { appPrivateKey } from '../app-key';
-import { buildSignedAuthRequest, sendSignedAuthRequest } from '../auth/remote';
 
 const APP_TOKEN_TTL_SECONDS = 120;
 
@@ -45,19 +45,21 @@ async function internalFetch(env: Env, sessionJwt: string, path: string, userId:
   });
 }
 
-export interface IconUploadUrl {
-  uploadUrl: string;
-  path: string;
-}
+const avatarUploadUrlSchema = z.object({ uploadUrl: z.url(), path: z.string().min(1) });
 
-export async function fetchIconUploadUrl(env: Env, userId: string, contentType: string): Promise<IconUploadUrl> {
-  const request = buildSignedAuthRequest(env, '/api/internal/mcp/icon-upload-url', {
+export async function fetchAvatarUploadUrl(
+  env: Env,
+  sessionJwt: string,
+  userId: string,
+  contentType: string
+): Promise<z.output<typeof avatarUploadUrlSchema>> {
+  const res = await internalFetch(env, sessionJwt, `/internal/users/${encodeURIComponent(userId)}/avatar-upload-url`, userId, {
     method: 'POST',
-    body: JSON.stringify({ userId, contentType }),
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ contentType }),
   });
-  const res = await sendSignedAuthRequest(request).catch(() => null);
-  if (!res?.ok) throw new Error(`api-auth icon upload url request failed: ${res?.status ?? 'network error'}`);
-  return (await res.json()) as IconUploadUrl;
+  if (!res.ok) throw new Error(`api.karasu256.com responded ${res.status} for ${res.url}`);
+  return avatarUploadUrlSchema.parse(await res.json());
 }
 
 export interface FirebasePhotoResult {

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { fetchSessionJwtForCaller, resolveMcpCaller } from '../src/lib/mcp/auth';
+import { ClaudeCommands } from '../src/commands';
+import { ClaudeAuthenticator } from '../src/lib/mcp/auth/claude';
 import { handleMcpMessage, type McpContext, type McpResponse } from '../src/lib/mcp/server';
 import { createMockBackend, SESSION_JWT, TEST_USER_ID, type MockBackend } from './mock-backend';
 
@@ -25,7 +26,7 @@ afterAll(() => {
 async function buildContext(): Promise<McpContext> {
   const accessToken = await backend.signAccessToken();
   const request = new Request(backend.env.MCP_URL, { headers: { authorization: `Bearer ${accessToken}` } });
-  const caller = await resolveMcpCaller(backend.env, request);
+  const caller = await new ClaudeAuthenticator().authenticate(backend.env, request);
   if (!caller) throw new Error('the mock access token did not resolve to a caller');
   let sessionJwtPromise: Promise<string> | null = null;
   return {
@@ -34,9 +35,10 @@ async function buildContext(): Promise<McpContext> {
     scopes: caller.scopes,
     sessionCookie: null,
     getSessionJwt: () => {
-      sessionJwtPromise ??= fetchSessionJwtForCaller(backend.env, caller);
+      sessionJwtPromise ??= caller.getSessionJwt();
       return sessionJwtPromise;
     },
+    tools: new ClaudeCommands().list(),
   };
 }
 
@@ -111,7 +113,7 @@ describe('avatar flow over MCP tools with mocked auth services', () => {
     const completed = await callTool(context, 'accounts_profile_flow_complete_icon_upload', { intent });
     expect(completed.isError).toBe(false);
     const { photoURL } = JSON.parse(textOf(completed)) as { photoURL: string };
-    expect(photoURL.startsWith(`${backend.env.CDN_URL}/u/profiles/${TEST_USER_ID}/avatar.png?v=`)).toBe(true);
+    expect(photoURL.startsWith(`${backend.env.CDN_URL}/u/profiles/${TEST_USER_ID}/avatars/default/avatar.png?v=`)).toBe(true);
 
     const reread = await callTool(context, 'accounts_profile_get_icon', {});
     expect(reread.isError).toBe(false);

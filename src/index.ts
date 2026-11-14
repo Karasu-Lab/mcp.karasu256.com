@@ -3,7 +3,9 @@ import { CloudflareAdapter } from 'elysia/adapter/cloudflare-worker';
 import { env as cfEnv } from 'cloudflare:workers';
 import { resolveEnv } from './constants';
 import { appPublicKey } from './lib/app-key';
-import { fetchSessionJwtForCaller, resolveMcpCaller } from './lib/mcp/auth';
+import { ClaudeCommands, MuseConnectorCommands } from './commands';
+import { ClaudeAuthenticator } from './lib/mcp/auth/claude';
+import { MuseConnectorAuthenticator } from './lib/mcp/auth/muse';
 import { appPublicKeyResponseSchema, jsonRpcRequestSchema, jsonRpcResponseSchema } from './lib/mcp/schemas';
 import { handleMcpMessage, type McpContext } from './lib/mcp/server';
 
@@ -28,7 +30,9 @@ const app = new Elysia({ adapter: CloudflareAdapter, aot: false })
   .post(
     '/mcp',
     async ({ body, request }) => {
-      const caller = await resolveMcpCaller(env, request).catch(() => null);
+      const claudeCaller = await new ClaudeAuthenticator().authenticate(env, request).catch(() => null);
+      const caller = claudeCaller ?? (await new MuseConnectorAuthenticator().authenticate(env, request).catch(() => null));
+      const commands = claudeCaller ? new ClaudeCommands() : new MuseConnectorCommands();
 
       let sessionJwtPromise: Promise<string> | null = null;
       const context: McpContext = {
@@ -40,9 +44,10 @@ const app = new Elysia({ adapter: CloudflareAdapter, aot: false })
           if (!caller) {
             return Promise.reject(new Error('api-auth session token exchange failed: the caller has no session'));
           }
-          sessionJwtPromise ??= fetchSessionJwtForCaller(env, caller);
+          sessionJwtPromise ??= caller.getSessionJwt();
           return sessionJwtPromise;
         },
+        tools: commands.list(),
       };
 
       const response = await handleMcpMessage(body, context);
