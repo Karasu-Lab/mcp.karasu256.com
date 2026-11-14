@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync, type KeyObject } from 'node:crypto';
 import { exportJWK, SignJWT } from 'jose';
-import { avatarCdnPath } from '../src/lib/avatar/paths';
+import { avatarPath } from '../src/commands/avatar';
 
 export const TEST_USER_ID = 'test-user-1';
 export const SESSION_JWT = 'mock-session-jwt';
@@ -76,9 +76,10 @@ export async function createMockBackend(): Promise<MockBackend> {
       return Response.json({ token: SESSION_JWT });
     }
 
-    if (method === 'POST' && url.href === `${env.AUTH_API_URL}/api/internal/mcp/icon-upload-url`) {
-      const body = JSON.parse(rawBody ?? '{}') as { userId?: string };
-      const path = avatarCdnPath(body.userId ?? TEST_USER_ID);
+    const avatarUploadUrlMatch = /^\/internal\/users\/([^/]+)\/avatar-upload-url$/.exec(url.pathname);
+    if (method === 'POST' && url.origin === env.API_URL && avatarUploadUrlMatch) {
+      if (headers.get('authorization') !== `Bearer ${SESSION_JWT}`) return new Response(null, { status: 401 });
+      const path = avatarPath(decodeURIComponent(avatarUploadUrlMatch[1]));
       return Response.json({ uploadUrl: `https://storage.test/put/${path}`, path });
     }
 
@@ -155,9 +156,9 @@ export async function createMockBackend(): Promise<MockBackend> {
     calls,
     signAccessToken,
     seedAvatar: (bytes, contentType) => {
-      store.set(avatarCdnPath(TEST_USER_ID), { bytes, contentType });
+      store.set(avatarPath(TEST_USER_ID), { bytes, contentType });
     },
-    storedAvatar: () => store.get(avatarCdnPath(TEST_USER_ID)),
+    storedAvatar: () => store.get(avatarPath(TEST_USER_ID)),
     failSessionExchange: (status) => {
       sessionExchangeFailure = status;
     },
