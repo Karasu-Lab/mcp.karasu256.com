@@ -29,22 +29,39 @@ export function avatarCommands(): ToolDispatch[] {
     defineTool({
       name: 'accounts_profile_prepare_icon_upload',
       description:
-        'Equivalent of POST /api/user/icon/prepare: validates the icon image, computes its SHA-256 and returns a presigned storage URL plus a signed upload intent. The caller uploads the file to the presigned URL itself. Requires authentication.',
+        'Equivalent of POST /api/user/icon/prepare: returns a presigned storage URL plus a signed upload intent for the icon. Describe the image either by contentBase64, or by the sha256 and size of a local file, in which case the caller uploads the file with an HTTP PUT (with the same content-type) to the presigned URL itself, e.g. curl -X PUT -H "content-type: <contentType>" --data-binary @<file> <uploadUrl>. Requires authentication.',
       requiredScope: 'write:users.profile',
-      invalidArgsMessage: 'accounts_profile_prepare_icon_upload requires contentBase64 and a supported contentType.',
-      inputSchema: z.object({
-        contentBase64: z.string().min(1).describe('The icon image file encoded as base64.'),
-        contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
-      }),
+      invalidArgsMessage:
+        'accounts_profile_prepare_icon_upload requires a supported contentType and either contentBase64 or both sha256 and size.',
+      inputSchema: z
+        .object({
+          contentBase64: z.string().min(1).optional().describe('The icon image file encoded as base64.'),
+          sha256: z
+            .string()
+            .regex(/^[0-9a-fA-F]{64}$/)
+            .optional()
+            .describe('The hex SHA-256 of the icon image file. Used together with size instead of contentBase64.'),
+          size: z.number().int().positive().optional().describe('The byte size of the icon image file. Used together with sha256 instead of contentBase64.'),
+          contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+        })
+        .refine((args) => args.contentBase64 !== undefined || (args.sha256 !== undefined && args.size !== undefined)),
       outputSchema: jsonToolResultSchema(z.object({ uploadUrl: z.string().min(1), intent: z.string().min(1) })),
       handle: async (args, context) => {
         const user = context.user;
         if (!user) return textResult('Unauthorized', true);
-        const bytes = Buffer.from(args.contentBase64, 'base64');
-        if (bytes.byteLength === 0 || bytes.byteLength > 5 * 1024 * 1024) return textResult('payload_too_large', true);
-        const sha256 = createHash('sha256').update(bytes).digest('hex');
+        let sha256: string;
+        let size: number;
+        if (args.contentBase64 !== undefined) {
+          const bytes = Buffer.from(args.contentBase64, 'base64');
+          sha256 = createHash('sha256').update(bytes).digest('hex');
+          size = bytes.byteLength;
+        } else {
+          sha256 = (args.sha256 as string).toLowerCase();
+          size = args.size as number;
+        }
+        if (size === 0 || size > 5 * 1024 * 1024) return textResult('payload_too_large', true);
         const { uploadUrl, path } = await fetchAvatarUploadUrl(context.env, await context.getSessionJwt(), user.id, args.contentType);
-        const intent = signUploadIntent(context.env, { userId: user.id, path, sha256, contentType: args.contentType, size: bytes.byteLength });
+        const intent = signUploadIntent(context.env, { userId: user.id, path, sha256, contentType: args.contentType, size });
         return jsonResult({ uploadUrl, intent });
       },
     }),
