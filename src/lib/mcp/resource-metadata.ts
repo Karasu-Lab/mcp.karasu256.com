@@ -15,7 +15,7 @@ export function protectedResourceMetadata(env: Env) {
     .filter((scope): scope is string => scope !== null);
   return {
     resource: env.MCP_URL,
-    authorization_servers: [`${env.AUTH_API_URL}/api/auth`],
+    authorization_servers: [new URL(env.MCP_URL).origin],
     scopes_supported: [...new Set(['openid', 'offline_access', ...toolScopes])],
     bearer_methods_supported: ['header'],
   };
