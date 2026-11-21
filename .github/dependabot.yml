@@ -8,3 +8,5 @@ updates:
       dependencies:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "@karasu-lab/*"
