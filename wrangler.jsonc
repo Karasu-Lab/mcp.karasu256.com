@@ -26,7 +26,7 @@
       "APP_ID": "mcp.karasu256.com",
       "AUTH_API_URL": "https://dev-api-auth.karasu256.com",
       "API_URL": "https://dev-api.karasu256.com",
-      "CDN_URL": "https://dev.cdn.karasu256.com",
+      "CDN_URL": "https://dev-cdn.karasu256.com",
       "MCP_URL": "https://dev.mcp.karasu256.com/mcp",
     },
   },
